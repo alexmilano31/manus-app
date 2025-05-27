@@ -14,14 +14,12 @@ from src.routes.bots import bots_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 CORS(app, resources={r"/api/*": {"origins": "*"}})  # En développement, à restreindre en production
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'manus_secret_key_change_in_production')
 
-# Enregistrement des blueprints
-app.register_blueprint(user_bp, url_prefix='/api/users')
-app.register_blueprint(auth_bp, url_prefix='/api/auth')
-app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
-app.register_blueprint(market_bp, url_prefix='/api/market')
-app.register_blueprint(bots_bp, url_prefix='/api/bots')
+# Secret et config JWT
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'manus_secret_key_change_in_production')
+app.config['JWT_TOKEN_LOCATION'] = ['headers']
+app.config['JWT_HEADER_NAME'] = 'Authorization'
+app.config['JWT_HEADER_TYPE'] = 'Bearer'
 
 # Configuration de la base de données SQLite
 db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'manus.db')
@@ -33,18 +31,28 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
+# Route santé (healthcheck)
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "message": "Manus API is running"}), 200
 
+# Enregistrement des blueprints
+app.register_blueprint(user_bp, url_prefix='/api/users')
+app.register_blueprint(auth_bp, url_prefix='/api/auth')
+app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
+app.register_blueprint(market_bp, url_prefix='/api/market')
+app.register_blueprint(bots_bp, url_prefix='/api/bots')
+
+# Routing React/static
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
     static_folder_path = app.static_folder
     if static_folder_path is None:
-            return "Static folder not configured", 404
+        return "Static folder not configured", 404
 
-    if path != "" and os.path.exists(os.path.join(static_folder_path, path)):
+    file_path = os.path.join(static_folder_path, path)
+    if path != "" and os.path.exists(file_path):
         return send_from_directory(static_folder_path, path)
     else:
         index_path = os.path.join(static_folder_path, 'index.html')
